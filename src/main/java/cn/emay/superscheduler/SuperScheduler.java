@@ -13,9 +13,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.lang.NonNull;
@@ -29,7 +30,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 /**
  * super scheduler 加载单元
  */
-public class SuperScheduler implements BeanPostProcessor, ApplicationContextAware, InitializingBean, SmartInitializingSingleton, DisposableBean {
+public class SuperScheduler implements BeanPostProcessor, ApplicationContextAware, InitializingBean, DisposableBean, ApplicationRunner {
 
     /**
      * log
@@ -288,10 +289,10 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
     }
 
     /**
-     * 4. 所有task加载后，加载但节点锁定线程池和任务、执行所有任务
+     * 4. spring容器启动后，加载但节点锁定线程池和任务、执行所有任务
      */
     @Override
-    public void afterSingletonsInstantiated() {
+    public void run(ApplicationArguments args) {
         if (isOnlyEnable) {
             onlyLockScheduler = new ThreadPoolTaskScheduler();
             onlyLockScheduler.setPoolSize(1);
