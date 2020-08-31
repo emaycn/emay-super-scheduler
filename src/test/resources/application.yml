@@ -1,0 +1,19 @@
+# 定时任务
+scheduler:
+  poolSize: 16
+  threadNamePrefix: "stp-"
+  awaitTerminationSeconds: 60
+  redisBeanName: "RedisClient"
+  onlyLockName: "emay-lock-only-sim111"
+
+# redis [单点、分片、集群，三选一使用]
+redis:
+  timeoutMillis: 2000
+  maxIdle: 4
+  maxTotal: 16
+  minIdle: 1
+  maxWaitMillis: 2000
+  datePattern: yyyy-MM-dd HH:mm:ss SSS
+  single:
+    host: 100.100.10.84
+    port: 6400

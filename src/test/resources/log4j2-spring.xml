@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- status : log4j本身日志级别 ； -->
+<Configuration status="ERROR">
+
+    <Properties>
+        <!-- 日志存放的位置 -->
+        <property name="LOG_HOME">logs</property>
+        <!-- Error日志名字 -->
+        <property name="ERROR_FILE_NAME">error</property>
+        <!-- Info日志名字 -->
+        <property name="INFO_FILE_NAME">info</property>
+        <!-- 日志输出格式 -->
+        <property name="PATTERN">[%d{yyyy-MM-dd HH:mm:ss.SSS}] [%c.%M,%L] %-5p - %m%n</property>
+        <!-- 控制台日志级别 -->
+        <property name="CONSOLE_LEVEL">info</property>
+    </Properties>
+
+    <Appenders>
+
+        <!--控制台 -->
+        <Console name="CONSOLE" target="SYSTEM_OUT">
+            <ThresholdFilter level="${CONSOLE_LEVEL}" onMatch="ACCEPT" onMismatch="DENY"/>
+            <PatternLayout pattern="${PATTERN}"/>
+        </Console>
+
+        <!-- Info File -->
+        <RollingFile name="INFO_LOG_FILE" fileName="${LOG_HOME}/${INFO_FILE_NAME}.log"
+                     filePattern="${LOG_HOME}/${INFO_FILE_NAME}.%d{yyyy-MM-dd}.log" append="true">
+            <PatternLayout pattern="${PATTERN}"/>
+            <Policies>
+                <!-- 按照配置的yyyy-MM-dd精度来执行分割，interval为单位，此处为1天 -->
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+            </Policies>
+            <Filters>
+                <ThresholdFilter level="WARN" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+        </RollingFile>
+
+        <!-- Error File -->
+        <RollingFile name="ERROR_LOG_FILE" fileName="${LOG_HOME}/${ERROR_FILE_NAME}.log"
+                     filePattern="${LOG_HOME}/${ERROR_FILE_NAME}.%d{yyyy-MM-dd}.log" append="true">
+            <PatternLayout pattern="${PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+            </Policies>
+            <Filters>
+                <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+        </RollingFile>
+
+    </Appenders>
+
+    <loggers>
+        <root level="TRACE">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="INFO_LOG_FILE"/>
+            <appender-ref ref="ERROR_LOG_FILE"/>
+        </root>
+    </loggers>
+
+</Configuration>
