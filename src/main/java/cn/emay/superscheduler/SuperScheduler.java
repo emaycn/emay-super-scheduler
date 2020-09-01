@@ -11,7 +11,6 @@ import cn.emay.superscheduler.exec.GetLockTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.BeanPostProcessor;
@@ -19,6 +18,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.SmartLifecycle;
 import org.springframework.lang.NonNull;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
@@ -30,7 +30,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 /**
  * super scheduler 加载单元
  */
-public class SuperScheduler implements BeanPostProcessor, ApplicationContextAware, InitializingBean, DisposableBean, ApplicationRunner {
+public class SuperScheduler implements BeanPostProcessor, ApplicationContextAware, InitializingBean, ApplicationRunner, SmartLifecycle {
 
     /**
      * log
@@ -58,12 +58,12 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
     /**
      * redis bean 名称
      */
-    @Value("${scheduler.redisBeanName}")
+    @Value("${scheduler.redisBeanName:NO_NEED}")
     private String redisBeanName;
     /**
      * 单节点锁名字
      */
-    @Value("${scheduler.onlyLockName}")
+    @Value("${scheduler.onlyLockName:NO_NEED}")
     private String onlyLockName;
     /**
      * 线程池
@@ -78,10 +78,6 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
      */
     private ThreadPoolTaskScheduler onlyLockScheduler;
     /**
-     * 用来做分布式锁的redis
-     */
-    private RedisClient redis;
-    /**
      * 扫描到的SuperScheduled临时存放容器
      */
     private List<TaskItem> tempWaitTasks;
@@ -89,6 +85,10 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
      * 缓存spring的scheduler注册器
      */
     private SuperExecutor executor;
+    /**
+     * 是否启动
+     */
+    private volatile boolean isStart = false;
 
     /**
      * 1. 缓存spring上下文
@@ -114,9 +114,6 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
         businessScheduler.setAwaitTerminationSeconds(Math.max(0, awaitTerminationSeconds));
         businessScheduler.initialize();
         executor = new SuperExecutor(businessScheduler);
-        if (redisBeanName != null) {
-            redis = APPLICATION_CONTEXT.getBean(redisBeanName, RedisClient.class);
-        }
     }
 
     /**
@@ -148,9 +145,6 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
     private void processSuperScheduled(SuperScheduled scheduled, Object bean, Method method) {
         String name = "@SuperScheduled[" + bean.getClass().getName() + ":" + method.getName() + "]";
         boolean only = scheduled.only();
-        if (only && redis == null) {
-            throw new IllegalArgumentException(name + "集群单节点执行参数[only=true]，但是redis[" + redisBeanName + "]没有找到");
-        }
         isOnlyEnable = isOnlyEnable || only;
 
         long initialDelay = Math.max(scheduled.initialDelay(), 0L);
@@ -289,11 +283,23 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
     }
 
     /**
-     * 4. spring容器启动后，加载但节点锁定线程池和任务、执行所有任务
+     * 4. 所有task加载后，加载单节点锁定线程池和任务、执行所有任务<br/>
+     * spring 容器启动后执行此启动
      */
     @Override
     public void run(ApplicationArguments args) {
+        log.info("super-scheduler starting");
         if (isOnlyEnable) {
+            RedisClient redis;
+            if (redisBeanName != null) {
+                try {
+                    redis = APPLICATION_CONTEXT.getBean(redisBeanName, RedisClient.class);
+                } catch (Throwable e) {
+                    throw new IllegalArgumentException("集群单节点执行参数[only=true]，但是redis[" + redisBeanName + "]没有找到");
+                }
+            } else {
+                throw new IllegalArgumentException("集群单节点执行参数[only=true]，但是redisBeanName没有配置");
+            }
             onlyLockScheduler = new ThreadPoolTaskScheduler();
             onlyLockScheduler.setPoolSize(1);
             onlyLockScheduler.setThreadNamePrefix(threadNamePrefix + "_lock_only_");
@@ -304,18 +310,33 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
         }
         tempWaitTasks.forEach(task -> executor.scheduleTask(task));
         tempWaitTasks.clear();
+        log.info("super-scheduler started");
+    }
+
+    @Override
+    public void start() {
+        isStart = true;
     }
 
     /**
-     * 5. 加载单元销毁后，停止并销毁所有任务、业务线程池、锁定线程池、业务线程池容器
+     * 5. 加载单元销毁后，停止并销毁所有任务、业务线程池、锁定线程池、业务线程池容器<br/>
+     * 在销毁之前关停
      */
     @Override
-    public void destroy() {
+    public void stop() {
+        isStart = false;
+        log.info("super-scheduler stopping");
         executor.destroy();
         if (isOnlyEnable && onlyLockScheduler != null) {
             onlyLockScheduler.shutdown();
         }
         businessScheduler.shutdown();
+        log.info("super-scheduler stopped");
+    }
+
+    @Override
+    public boolean isRunning() {
+        return isStart;
     }
 
 }
