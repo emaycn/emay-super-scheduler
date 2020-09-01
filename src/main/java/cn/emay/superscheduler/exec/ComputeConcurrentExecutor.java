@@ -167,21 +167,25 @@ public class ComputeConcurrentExecutor {
             }
         }
 
-        int concurrentMax = Math.max(scheduled.dynamicConcurrentMax(), 1);
-        long needNumber = need.values().stream().mapToInt((s) -> s).summaryStatistics().getSum();
-        if (needNumber > concurrentMax) {
-            needNew = new HashMap<>();
-            AtomicInteger atomicInteger = new AtomicInteger(concurrentMax);
-            need.forEach((sharded, number) -> {
-                for (int i = 0; i < number; i++) {
-                    int now = atomicInteger.addAndGet(-1);
-                    if (now < 0) {
-                        break;
+        int concurrentMax = scheduled.dynamicConcurrentMax();
+        if (concurrentMax > 0) {
+            long needNumber = need.values().stream().mapToInt((s) -> s).summaryStatistics().getSum();
+            if (needNumber > concurrentMax) {
+                needNew = new HashMap<>();
+                AtomicInteger atomicInteger = new AtomicInteger(concurrentMax);
+                need.forEach((sharded, number) -> {
+                    for (int i = 0; i < number; i++) {
+                        int now = atomicInteger.addAndGet(-1);
+                        if (now < 0) {
+                            break;
+                        }
+                        needNew.computeIfAbsent(sharded, k -> 0);
+                        needNew.put(sharded, needNew.get(sharded) + 1);
                     }
-                    needNew.computeIfAbsent(sharded, k -> 0);
-                    needNew.put(sharded, needNew.get(sharded) + 1);
-                }
-            });
+                });
+            } else {
+                needNew = need;
+            }
         } else {
             needNew = need;
         }
