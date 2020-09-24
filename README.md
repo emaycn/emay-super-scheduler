@@ -6,11 +6,11 @@
 2. 根据返回值动态delay；
 3. 动态调整并发(以及分片并发)数；
 
-````java
+
+```java
+
 package cn.emay.superscheduler;
 
-
-import cn.emay.json.JsonHelper;
 import cn.emay.superscheduler.core.ConcurrentComputer;
 import cn.emay.superscheduler.core.SimpleConcurrentComputer;
 import cn.emay.superscheduler.core.SuperScheduled;
@@ -136,7 +136,7 @@ public class SpringTaskTest {
     @Bean("t7ComputeBean")
     public ConcurrentComputer t7ComputeBean() {
         return concurrent -> {
-            String nowConcurrent = JsonHelper.toJsonString(concurrent);
+            String nowConcurrent = toString(concurrent);
 
             Map<String, Integer> need = new HashMap<>();
 
@@ -168,7 +168,7 @@ public class SpringTaskTest {
                     break;
             }
 
-            String needConcurrent = JsonHelper.toJsonString(need);
+            String needConcurrent = toString(need);
 
             String now = toString(new Date(), "HH:mm:ss");
             System.out.println(now + " : " + Thread.currentThread().getName() + " : " + "t7ComputeBean 开始调整并发,当前并发量(" + nowConcurrent + "),期望并发量(" + needConcurrent + ")");
@@ -195,7 +195,16 @@ public class SpringTaskTest {
         return sdf.format(date);
     }
 
+    /**
+     * 转成字符串
+     */
+    public static String toString(Map<String, Integer> data) {
+        StringBuilder builder = new StringBuilder();
+        data.forEach((k, v) -> builder.append(k).append("=").append(v).append(";"));
+        return builder.toString();
+    }
+
 
 }
 
-````
+```

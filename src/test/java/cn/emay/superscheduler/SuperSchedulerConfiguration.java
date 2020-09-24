@@ -1,11 +1,10 @@
 package cn.emay.superscheduler;
 
-import cn.emay.redis.RedisClient;
 import cn.emay.superscheduler.core.OnlyLockHandler;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.DependsOn;
+import redis.clients.jedis.Jedis;
 
 import javax.annotation.Resource;
 
@@ -15,7 +14,6 @@ import javax.annotation.Resource;
  */
 @Configuration
 @ConfigurationProperties(prefix = "scheduler")
-@DependsOn("RedisClient")
 public class SuperSchedulerConfiguration {
 
     /**
@@ -44,8 +42,8 @@ public class SuperSchedulerConfiguration {
     public OnlyLockHandler genOnlyLock() {
         return new OnlyLockHandler() {
 
-            @Resource(name = "RedisClient")
-            private RedisClient redis;
+            @Resource(name = "Jedis")
+            private Jedis redis;
 
             private static final String KEY = "KV_TASK_LOCK_APPLY_";
 
@@ -54,7 +52,13 @@ public class SuperSchedulerConfiguration {
                 String key = KEY + onlyLockName;
                 String currentNodeId = redis.get(key);
                 if (currentNodeId == null) {
-                    return redis.setnx(key, nodeId, seconds);
+                    long nu = redis.setnx(key, nodeId);
+                    if (nu > 0) {
+                        redis.expire(key, seconds);
+                        return true;
+                    } else {
+                        return false;
+                    }
                 } else {
                     if (currentNodeId.equals(nodeId)) {
                         redis.expire(key, seconds);
@@ -72,6 +76,11 @@ public class SuperSchedulerConfiguration {
             }
 
         };
+    }
+
+    @Bean(name = "Jedis", destroyMethod = "close")
+    public Jedis redisClient() {
+        return new Jedis("100.100.10.84", 6400);
     }
 
     public int getPoolSize() {
@@ -97,7 +106,6 @@ public class SuperSchedulerConfiguration {
     public void setAwaitTerminationSeconds(int awaitTerminationSeconds) {
         this.awaitTerminationSeconds = awaitTerminationSeconds;
     }
-
 
     public String getOnlyLockName() {
         return onlyLockName;
