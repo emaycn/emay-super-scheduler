@@ -17,12 +17,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 配置文件中<br/>
- * scheduler.redisBeanName redis spring 注册名<br/>
  * scheduler.poolSize 核心线程数<br/>
  * scheduler.threadNamePrefix 线程名前缀<br/>
  * scheduler.awaitTerminationSeconds 停止时等待当前线程业务执行完毕时间<br/>
- * scheduler.onlyLockName 但节点锁的名字
- * <p>
+ * scheduler.onlyLockName 单节点锁的名字
+ * <br/>
  * 任务类型和并发类型可以任意组合：
  * 任务类型：cron,fixedDelay,fixedRate,dynamicDelay
  * 并发类型：fixedConcurrent,dynamicConcurrent*
@@ -31,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SpringTaskTest {
 
     /**
-     * 1. 固定间隔时间执行,并发1,初始延迟1秒执行
+     * 1. 固定间隔时间执行,并发2,初始延迟1秒执行
      */
     @SuperScheduled(fixedDelay = 1000L, initialDelay = 1000L, only = true, fixedConcurrent = 2)
     public void t1() {
@@ -57,7 +56,7 @@ public class SpringTaskTest {
     /**
      * 3. cron执行,并发1,集群单节点执行
      */
-    @SuperScheduled(cron = "0/3 * * * * ?", fixedConcurrent = 2)
+    @SuperScheduled(cron = "0/3 * * * * ?")
     public void t3() {
         String now = toString(new Date(), "HH:mm:ss");
         System.out.println(now + " : " + Thread.currentThread().getName() + " : 开始执行");
@@ -69,7 +68,7 @@ public class SpringTaskTest {
     /**
      * 4. 动态间隔时间执行,并发1
      */
-    @SuperScheduled(dynamicDelay = true, fixedConcurrent = 2, only = true)
+    @SuperScheduled(dynamicDelay = true, only = true)
     public long t4() {
         String now = toString(new Date(), "HH:mm:ss");
         System.out.println(now + " : " + Thread.currentThread().getName() + " : 开始执行");
