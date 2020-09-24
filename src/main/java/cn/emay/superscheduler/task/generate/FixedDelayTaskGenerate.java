@@ -1,4 +1,4 @@
-package cn.emay.superscheduler.exec;
+package cn.emay.superscheduler.task.generate;
 
 
 import cn.emay.superscheduler.SuperExecutor;
@@ -10,7 +10,7 @@ import java.lang.reflect.Method;
 /**
  * 静态延时任务执行器
  */
-public class FixedDelayTaskGender {
+public class FixedDelayTaskGenerate {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
     /**
@@ -44,19 +44,20 @@ public class FixedDelayTaskGender {
 
     /**
      * @param executor 线程池
-     * @param only      是否单节点执行
-     * @param taskName  任务名称
-     * @param sharded   分片
-     * @param bean      执行对象
-     * @param method    执行方法
+     * @param only     是否单节点执行
+     * @param taskName 任务名称
+     * @param sharded  分片
+     * @param bean     执行对象
+     * @param method   执行方法
      */
-    public FixedDelayTaskGender(SuperExecutor executor, boolean only, String taskName, String sharded, Object bean, Method method) {
+    public FixedDelayTaskGenerate(SuperExecutor executor, boolean only, String taskName, String sharded, Object bean, Method method) {
         this.bean = bean;
         this.method = method;
+        this.only = only;
         this.sharded = sharded;
         this.taskName = taskName;
         this.executor = executor;
-        this.only = only;
+
         this.runnable = genRunnable();
     }
 

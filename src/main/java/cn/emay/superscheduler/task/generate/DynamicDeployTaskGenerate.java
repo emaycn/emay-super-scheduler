@@ -1,4 +1,4 @@
-package cn.emay.superscheduler.exec;
+package cn.emay.superscheduler.task.generate;
 
 import cn.emay.superscheduler.SuperExecutor;
 import org.slf4j.Logger;
@@ -11,13 +11,9 @@ import java.util.Date;
 /**
  * 动态延时任务执行器
  */
-public class DynamicDeployTaskGender {
+public class DynamicDeployTaskGenerate {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
-    /**
-     * 初始化延时时间，固定值，用以后续动态扩展新执行单元使用
-     */
-    private final long initialDelayMillis;
     /**
      * 执行对象
      */
@@ -60,7 +56,7 @@ public class DynamicDeployTaskGender {
     private final boolean only;
 
     /**
-     * @param executor          线程池
+     * @param executor           线程池
      * @param only               是否单节点执行
      * @param taskName           任务名称
      * @param sharded            分片
@@ -68,14 +64,14 @@ public class DynamicDeployTaskGender {
      * @param method             执行方法
      * @param initialDelayMillis 初始化延迟时间
      */
-    public DynamicDeployTaskGender(SuperExecutor executor, boolean only, String taskName, String sharded, Object bean, Method method, long initialDelayMillis) {
-        this.executor = executor;
-        this.only = only;
+    public DynamicDeployTaskGenerate(SuperExecutor executor, boolean only, String taskName, String sharded, Object bean, Method method, long initialDelayMillis) {
         this.bean = bean;
         this.method = method;
+        this.only = only;
         this.sharded = sharded;
         this.taskName = taskName;
-        this.initialDelayMillis = initialDelayMillis;
+        this.executor = executor;
+
         this.initialDelay = initialDelayMillis;
         this.runnable = genRunnable();
         this.trigger = genTrigger();
@@ -139,10 +135,6 @@ public class DynamicDeployTaskGender {
 
     public Trigger getTrigger() {
         return trigger;
-    }
-
-    public long getInitialDelay() {
-        return initialDelayMillis;
     }
 
     public String getTaskName() {

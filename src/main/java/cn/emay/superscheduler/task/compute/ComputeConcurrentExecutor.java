@@ -1,10 +1,8 @@
-package cn.emay.superscheduler.exec;
+package cn.emay.superscheduler.task.compute;
 
 import cn.emay.superscheduler.SuperExecutor;
-import cn.emay.superscheduler.base.SuperComputer;
 import cn.emay.superscheduler.base.TaskType;
 import cn.emay.superscheduler.core.ConcurrentComputer;
-import cn.emay.superscheduler.core.ShardedConcurrentComputer;
 import cn.emay.superscheduler.core.SuperScheduled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +45,7 @@ public class ComputeConcurrentExecutor {
     /**
      * 计算逻辑
      */
-    private final SuperComputer superComputer;
+    private final ConcurrentComputer superComputer;
     /**
      * 线程池
      */
@@ -68,7 +66,7 @@ public class ComputeConcurrentExecutor {
     }
 
     /**
-     * @param executor 线程池
+     * @param executor      线程池
      * @param name          任务名
      * @param scheduled     任务定义
      * @param bean          执行对象
@@ -76,7 +74,7 @@ public class ComputeConcurrentExecutor {
      * @param taskType      任务类型
      * @param superComputer 并发计算器
      */
-    public ComputeConcurrentExecutor(SuperExecutor executor, String name, SuperScheduled scheduled, Object bean, Method method, TaskType taskType, SuperComputer superComputer) {
+    public ComputeConcurrentExecutor(SuperExecutor executor, String name, SuperScheduled scheduled, Object bean, Method method, TaskType taskType, ConcurrentComputer superComputer) {
         this.scheduled = scheduled;
         this.name = name;
         this.bean = bean;
@@ -93,7 +91,7 @@ public class ComputeConcurrentExecutor {
         // 需要锁但是没有竞争到锁释放所有线程
         if (scheduled.only() && executor.isNoHasLock()) {
             executor.removeTaskByName(name);
-            if(log.isDebugEnabled()){
+            if (log.isDebugEnabled()) {
                 log.debug("本节点未获取到锁，任务" + name + "全部停止");
             }
             return;
@@ -141,7 +139,7 @@ public class ComputeConcurrentExecutor {
             }
         });
 
-        if(log.isDebugEnabled()){
+        if (log.isDebugEnabled()) {
             log.debug("调整并发 : 当前(" + toString(concurrent) + ") -> 需要(" + toString(need) + ")");
         }
 
@@ -154,19 +152,13 @@ public class ComputeConcurrentExecutor {
      * @return 所需并发数
      */
     private Map<String, Integer> computerNeed(Map<String, Integer> concurrent) {
-        Map<String, Integer> needNew;
-        Map<String, Integer> need = new HashMap<>();
-        if (superComputer instanceof ConcurrentComputer) {
-            int now = concurrent.getOrDefault(SuperExecutor.DEFAULT_SHARDED, 0);
-            int needNumber = ((ConcurrentComputer) superComputer).compute(now);
-            need.put(SuperExecutor.DEFAULT_SHARDED, Math.max(needNumber, 0));
-        } else if (superComputer instanceof ShardedConcurrentComputer) {
-            Map<String, Integer> needOld = ((ShardedConcurrentComputer) superComputer).compute(concurrent);
-            if (needOld != null) {
-                need.putAll(needOld);
-            }
+
+        Map<String, Integer> need = superComputer.compute(concurrent);
+        if (need == null) {
+            need = new HashMap<>();
         }
 
+        Map<String, Integer> needNew;
         int concurrentMax = scheduled.dynamicConcurrentMax();
         if (concurrentMax > 0) {
             long needNumber = need.values().stream().mapToInt((s) -> s).summaryStatistics().getSum();

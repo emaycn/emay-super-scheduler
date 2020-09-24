@@ -3,7 +3,7 @@ package cn.emay.superscheduler;
 
 import cn.emay.json.JsonHelper;
 import cn.emay.superscheduler.core.ConcurrentComputer;
-import cn.emay.superscheduler.core.ShardedConcurrentComputer;
+import cn.emay.superscheduler.core.SimpleConcurrentComputer;
 import cn.emay.superscheduler.core.SuperScheduled;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
@@ -98,7 +98,7 @@ public class SpringTaskTest {
      * 6. 动态调配并发数量
      */
     @Bean("t6ComputeBean")
-    public ConcurrentComputer t6ComputeBean() {
+    public SimpleConcurrentComputer t6ComputeBean() {
         return concurrent -> {
             String now = toString(new Date(), "HH:mm:ss");
             int need = new Random().nextInt(6);
@@ -126,7 +126,7 @@ public class SpringTaskTest {
      * 7. 动态调配分片并发数量
      */
     @Bean("t7ComputeBean")
-    public ShardedConcurrentComputer t7ComputeBean() {
+    public ConcurrentComputer t7ComputeBean() {
         return concurrent -> {
             String nowConcurrent = JsonHelper.toJsonString(concurrent);
 

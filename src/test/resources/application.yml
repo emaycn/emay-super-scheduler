@@ -3,8 +3,7 @@ scheduler:
   poolSize: 16
   threadNamePrefix: "stp-"
   awaitTerminationSeconds: 60
-  redisBeanName: "RedisClient"
-  onlyLockName: "emay-lock-only-sim111"
+  onlyLockName: "emay-lock-only-sim222"
 
 # redis [单点、分片、集群，三选一使用]
 redis:

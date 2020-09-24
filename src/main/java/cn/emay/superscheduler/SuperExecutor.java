@@ -4,8 +4,8 @@ package cn.emay.superscheduler;
 import cn.emay.superscheduler.base.TaskItem;
 import cn.emay.superscheduler.base.TaskType;
 import cn.emay.superscheduler.core.SuperScheduled;
-import cn.emay.superscheduler.exec.DynamicDeployTaskGender;
-import cn.emay.superscheduler.exec.FixedDelayTaskGender;
+import cn.emay.superscheduler.task.generate.DynamicDeployTaskGenerate;
+import cn.emay.superscheduler.task.generate.FixedDelayTaskGenerate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.TaskScheduler;
@@ -135,7 +135,7 @@ public class SuperExecutor {
      * @return cron任务
      */
     public TaskItem genCronTask(boolean only, String name, String sharded, Object bean, Method method, String cron) {
-        FixedDelayTaskGender fixedDelayTaskGender = new FixedDelayTaskGender(this, only, name, sharded, bean, method);
+        FixedDelayTaskGenerate fixedDelayTaskGender = new FixedDelayTaskGenerate(this, only, name, sharded, bean, method);
         CronTask task = new CronTask(fixedDelayTaskGender.getRunnable(), cron);
         return new TaskItem(task, name, sharded);
     }
@@ -152,7 +152,7 @@ public class SuperExecutor {
      * @return 动态延时任务
      */
     public TaskItem genDynamicDelayTask(boolean only, String name, String sharded, Object bean, Method method, long initialDelay) {
-        DynamicDeployTaskGender exec = new DynamicDeployTaskGender(this, only, name, sharded, bean, method, initialDelay);
+        DynamicDeployTaskGenerate exec = new DynamicDeployTaskGenerate(this, only, name, sharded, bean, method, initialDelay);
         TriggerTask task = new TriggerTask(exec.getTask(), exec.getTrigger());
         return new TaskItem(task, name, sharded);
     }
@@ -170,7 +170,7 @@ public class SuperExecutor {
      * @return 固定延时任务
      */
     public TaskItem genFixedDelayTask(boolean only, String name, String sharded, Object bean, Method method, long fixedDelay, long initialDelay) {
-        FixedDelayTaskGender fixedDelayTaskGender = new FixedDelayTaskGender(this, only, name, sharded, bean, method);
+        FixedDelayTaskGenerate fixedDelayTaskGender = new FixedDelayTaskGenerate(this, only, name, sharded, bean, method);
         FixedDelayTask task = new FixedDelayTask(fixedDelayTaskGender.getRunnable(), fixedDelay, initialDelay);
         return new TaskItem(task, name, sharded);
     }
@@ -188,7 +188,7 @@ public class SuperExecutor {
      * @return 固定频率任务
      */
     public TaskItem genFixedRateTask(boolean only, String name, String sharded, Object bean, Method method, long fixedRate, long initialDelay) {
-        FixedDelayTaskGender fixedDelayTaskGender = new FixedDelayTaskGender(this, only, name, sharded, bean, method);
+        FixedDelayTaskGenerate fixedDelayTaskGender = new FixedDelayTaskGenerate(this, only, name, sharded, bean, method);
         FixedRateTask task = new FixedRateTask(fixedDelayTaskGender.getRunnable(), fixedRate, initialDelay);
         return new TaskItem(task, name, sharded);
     }

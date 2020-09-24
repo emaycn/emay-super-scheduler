@@ -18,7 +18,7 @@ public @interface SuperScheduled {
 
     /**
      * 应用集群部署时，保证此任务仅在一个节点执行<br/>
-     * 需要配置redis<br/>
+     * 需要实现 OnlyLockHandler 并配置 onlyLockName<br/>
      * 通用属性
      */
     boolean only() default false;
@@ -82,8 +82,8 @@ public @interface SuperScheduled {
     /**
      * 动态计算并发数逻辑实例在spring注册的名称<br/>
      * 支持两种计算逻辑：<br/>
-     * ConcurrentComputer ： 普通并发数量计算器<br/>
-     * ConcurrentShardedComputer ： 分片并发数量计算器，需要方法接收分片信息，String类型<br/>
+     * SimpleConcurrentComputer ： 简单并发数量计算器，无需关注任务分片<br/>
+     * ConcurrentComputer： 并发数量计算器，需要方法接收分片信息，String类型<br/>
      * 并发控制属性
      */
     String dynamicConcurrentComputeBean() default "";

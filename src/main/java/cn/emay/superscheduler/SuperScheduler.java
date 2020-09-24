@@ -1,18 +1,17 @@
 package cn.emay.superscheduler;
 
-import cn.emay.redis.RedisClient;
 import cn.emay.superscheduler.base.TaskItem;
 import cn.emay.superscheduler.base.TaskType;
 import cn.emay.superscheduler.core.ConcurrentComputer;
-import cn.emay.superscheduler.core.ShardedConcurrentComputer;
+import cn.emay.superscheduler.core.OnlyLockHandler;
+import cn.emay.superscheduler.core.SimpleConcurrentComputer;
 import cn.emay.superscheduler.core.SuperScheduled;
-import cn.emay.superscheduler.exec.ComputeConcurrentExecutor;
-import cn.emay.superscheduler.exec.GetLockTask;
+import cn.emay.superscheduler.task.compute.ComputeConcurrentExecutor;
+import cn.emay.superscheduler.task.lock.GetLockTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -25,6 +24,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -43,28 +43,27 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
     /**
      * 线程池核心线程数
      */
-    @Value("${scheduler.poolSize}")
-    private int poolSize;
+    private final int poolSize;
     /**
      * 线程池线程名称前缀
      */
-    @Value("${scheduler.threadNamePrefix}")
-    private String threadNamePrefix;
+    private final String threadNamePrefix;
     /**
      * 线程池停止时等待业务执行完毕时间
      */
-    @Value("${scheduler.awaitTerminationSeconds}")
-    private int awaitTerminationSeconds;
+    private final int awaitTerminationSeconds;
     /**
      * redis bean 名称
      */
-    @Value("${scheduler.redisBeanName:NO_NEED}")
-    private String redisBeanName;
+    private final OnlyLockHandler onlyLockHandler;
     /**
      * 单节点锁名字
      */
-    @Value("${scheduler.onlyLockName:NO_NEED}")
-    private String onlyLockName;
+    private final String onlyLockName;
+    /**
+     * 当前节点标示
+     */
+    private final String nodeId;
     /**
      * 线程池
      */
@@ -89,6 +88,15 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
      * 是否启动
      */
     private volatile boolean isStart = false;
+
+    public SuperScheduler(int poolSize, String threadNamePrefix, int awaitTerminationSeconds, String onlyLockName, OnlyLockHandler onlyLockHandler) {
+        this.poolSize = poolSize;
+        this.threadNamePrefix = threadNamePrefix;
+        this.awaitTerminationSeconds = awaitTerminationSeconds;
+        this.onlyLockName = onlyLockName;
+        this.onlyLockHandler = onlyLockHandler;
+        this.nodeId = UUID.randomUUID().toString();
+    }
 
     /**
      * 1. 缓存spring上下文
@@ -154,7 +162,6 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
         int dynamicConcurrentMax = scheduled.dynamicConcurrentMax();
         int fixedConcurrent = scheduled.fixedConcurrent();
         boolean isDynamicConcurrent = dynamicConcurrentComputeDelay > 0L;
-        boolean isShardedDynamicConcurrent = false;
         Object computer = null;
         if (isDynamicConcurrent) {
             try {
@@ -162,21 +169,17 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
             } catch (BeansException e) {
                 throw new IllegalArgumentException(name + "动态调整并发开启，但是调整Bean[" + dynamicConcurrentComputeBean + "]在spring没有注册");
             }
-            if (computer instanceof ConcurrentComputer) {
-                isShardedDynamicConcurrent = false;
+            if (computer instanceof SimpleConcurrentComputer) {
                 if (method.getParameterCount() != 0) {
                     throw new IllegalArgumentException(name + "动态并发任务，方法不能定义参数");
                 }
-            } else if (computer instanceof ShardedConcurrentComputer) {
-                isShardedDynamicConcurrent = true;
+            } else {
                 if (method.getParameterCount() != 1) {
                     throw new IllegalArgumentException(name + "动态分片并发任务，方法必须只能有一个String类型的参数");
                 }
                 if (!method.getParameterTypes()[0].getName().equals(String.class.getName())) {
                     throw new IllegalArgumentException(name + "动态分片并发任务，方法必须只能有一个String类型的参数");
                 }
-            } else {
-                throw new IllegalArgumentException(name + "动态调整并发开启，但是调整Bean[" + dynamicConcurrentComputeBean + "]不是支持的类型");
             }
         } else {
             if (fixedConcurrent <= 0) {
@@ -192,7 +195,7 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
                 throw new IllegalArgumentException(name + "CRON任务，方法返回值类型必须是void");
             }
             if (isDynamicConcurrent) {
-                addDynamicTask(isShardedDynamicConcurrent, name, scheduled, bean, method, TaskType.CRON, dynamicConcurrentComputeDelay, computer);
+                addDynamicTask(name, scheduled, bean, method, TaskType.CRON, dynamicConcurrentComputeDelay, computer);
             } else {
                 for (int i = 0; i < fixedConcurrent; i++) {
                     TaskItem item = executor.genCronTask(scheduled.only(), name, SuperExecutor.DEFAULT_SHARDED, bean, method, scheduled.cron());
@@ -209,7 +212,7 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
                 throw new IllegalArgumentException(name + "固定间隔时间任务，方法返回值类型必须是void");
             }
             if (isDynamicConcurrent) {
-                addDynamicTask(isShardedDynamicConcurrent, name, scheduled, bean, method, TaskType.FIXED_DELAY, dynamicConcurrentComputeDelay, computer);
+                addDynamicTask(name, scheduled, bean, method, TaskType.FIXED_DELAY, dynamicConcurrentComputeDelay, computer);
             } else {
                 for (int i = 0; i < fixedConcurrent; i++) {
                     TaskItem item = executor.genFixedDelayTask(scheduled.only(), name, SuperExecutor.DEFAULT_SHARDED, bean, method, scheduled.fixedDelay(), initialDelay);
@@ -226,7 +229,7 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
                 throw new IllegalArgumentException(name + "固定频率任务，方法返回值类型必须是void");
             }
             if (isDynamicConcurrent) {
-                addDynamicTask(isShardedDynamicConcurrent, name, scheduled, bean, method, TaskType.FIXED_RATE, dynamicConcurrentComputeDelay, computer);
+                addDynamicTask(name, scheduled, bean, method, TaskType.FIXED_RATE, dynamicConcurrentComputeDelay, computer);
             } else {
                 for (int i = 0; i < fixedConcurrent; i++) {
                     TaskItem item = executor.genFixedRateTask(scheduled.only(), name, SuperExecutor.DEFAULT_SHARDED, bean, method, scheduled.fixedRate(), initialDelay);
@@ -243,7 +246,7 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
                 throw new IllegalArgumentException(name + "动态执行时间任务，方法返回值类型必须是long");
             }
             if (isDynamicConcurrent) {
-                addDynamicTask(isShardedDynamicConcurrent, name, scheduled, bean, method, TaskType.DYNAMIC_DELAY, dynamicConcurrentComputeDelay, computer);
+                addDynamicTask(name, scheduled, bean, method, TaskType.DYNAMIC_DELAY, dynamicConcurrentComputeDelay, computer);
             } else {
                 for (int i = 0; i < fixedConcurrent; i++) {
                     TaskItem item = executor.genDynamicDelayTask(scheduled.only(), name, SuperExecutor.DEFAULT_SHARDED, bean, method, initialDelay);
@@ -259,7 +262,6 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
     /**
      * 增加动态并发调配任务
      *
-     * @param isShardedDynamicConcurrent    是否分片并发
      * @param name                          任务名
      * @param scheduled                     定义
      * @param bean                          对象
@@ -268,13 +270,8 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
      * @param dynamicConcurrentComputeDelay 动态并发计算延时
      * @param computer                      动态并发计算器
      */
-    private void addDynamicTask(boolean isShardedDynamicConcurrent, String name, SuperScheduled scheduled, Object bean, Method method, TaskType type, long dynamicConcurrentComputeDelay, Object computer) {
-        ComputeConcurrentExecutor task;
-        if (isShardedDynamicConcurrent) {
-            task = new ComputeConcurrentExecutor(executor, name, scheduled, bean, method, type, (ShardedConcurrentComputer) computer);
-        } else {
-            task = new ComputeConcurrentExecutor(executor, name, scheduled, bean, method, type, (ConcurrentComputer) computer);
-        }
+    private void addDynamicTask(String name, SuperScheduled scheduled, Object bean, Method method, TaskType type, long dynamicConcurrentComputeDelay, Object computer) {
+        ComputeConcurrentExecutor task = new ComputeConcurrentExecutor(executor, name, scheduled, bean, method, type, (ConcurrentComputer) computer);
         TaskItem item = executor.genFixedDelayTask(false, name, SuperExecutor.DYNAMIC_SHARDED, task, ComputeConcurrentExecutor.getLogicMethod(), dynamicConcurrentComputeDelay, 0L);
         tempWaitTasks.add(item);
         if (log.isDebugEnabled()) {
@@ -290,22 +287,18 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
     public void run(ApplicationArguments args) {
         log.info("super-scheduler starting");
         if (isOnlyEnable) {
-            RedisClient redis;
-            if (redisBeanName != null) {
-                try {
-                    redis = APPLICATION_CONTEXT.getBean(redisBeanName, RedisClient.class);
-                } catch (Throwable e) {
-                    throw new IllegalArgumentException("集群单节点执行参数[only=true]，但是redis[" + redisBeanName + "]没有找到");
-                }
-            } else {
-                throw new IllegalArgumentException("集群单节点执行参数[only=true]，但是redisBeanName没有配置");
+            if (onlyLockHandler == null) {
+                throw new IllegalArgumentException("集群单节点执行参数[only=true]，但是onlyLock没有定义");
+            }
+            if (onlyLockName == null) {
+                throw new IllegalArgumentException("集群单节点执行参数[only=true]，但是onlyLockName没有配置");
             }
             onlyLockScheduler = new ThreadPoolTaskScheduler();
             onlyLockScheduler.setPoolSize(1);
             onlyLockScheduler.setThreadNamePrefix(threadNamePrefix + "_lock_only_");
             onlyLockScheduler.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
             onlyLockScheduler.initialize();
-            GetLockTask task = new GetLockTask(redis, onlyLockName, executor);
+            GetLockTask task = new GetLockTask(onlyLockHandler, onlyLockName, nodeId, executor);
             onlyLockScheduler.scheduleWithFixedDelay(task, 5000L);
         }
         tempWaitTasks.forEach(task -> executor.scheduleTask(task));
@@ -331,6 +324,10 @@ public class SuperScheduler implements BeanPostProcessor, ApplicationContextAwar
             onlyLockScheduler.shutdown();
         }
         businessScheduler.shutdown();
+        if (isOnlyEnable && onlyLockHandler != null) {
+            log.info("super-scheduler unlock by " + nodeId);
+            onlyLockHandler.unLock(onlyLockName, nodeId);
+        }
         log.info("super-scheduler stopped");
     }
 

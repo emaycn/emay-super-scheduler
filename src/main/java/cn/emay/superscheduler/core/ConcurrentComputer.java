@@ -1,20 +1,17 @@
 package cn.emay.superscheduler.core;
 
-
-import cn.emay.superscheduler.base.SuperComputer;
+import java.util.Map;
 
 /**
- * 任务并发计算器<br/>
- * 计算任务所需并发数
+ * 并发计算器
  */
-public interface ConcurrentComputer extends SuperComputer {
+public interface ConcurrentComputer {
 
     /**
-     * 计算任务所需并发数
+     * 计算每个分片所需并发数
      *
-     * @param concurrent 当前并发量
-     * @return 任务所需并发数
+     * @param concurrent <分片,并发数> 当前分片并发数
+     * @return 所需分片并发数 <分片,并发数>
      */
-    int compute(int concurrent);
-
+    Map<String, Integer> compute(Map<String, Integer> concurrent);
 }
